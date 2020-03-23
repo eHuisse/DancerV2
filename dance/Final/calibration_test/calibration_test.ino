@@ -1,100 +1,117 @@
-// This example shows how to send I2C commands to two Tic Stepper
-// Motor Controllers on the same I2C bus.
-//
-// Each Tic's control mode must be set to "Serial/I2C/USB".  The
-// serial device number of one Tic must be set to its default
-// value of 14, and the serial device number of another Tic must
-// be set to 15.
-//
-// The GND, SCL, and SDA pins of the Arduino must each be
-// connected to the corresponding pins on each Tic.  You might
-// consider connecting the ERR lines of both Tics so that if
-// either one experiences an error, both of them will shut down
-// until you reset the Arduino.
-//
-// See the comments and instructions in I2CSpeedControl.ino for
-// more information.
-
-#include <Tic.h>
-#include <Timer.h>
 #include "stepper.h"
 #include "motion_control.h"
+#include "calibration.h"
+#include <Tic.h>
+#include <DebounceInput.h>
 
 Stepper StepperT(10);
 Stepper StepperY(11);
 Stepper StepperX(12);
 
+const int timeStep = 10; //Time step of step tracking in useconds
+const int xSwitchPin = 12;
+const int ySwitchPin = 13;
+
+DebouncedInput xSwitchPinDB;
+DebouncedInput ySwitchPinDB;
+
 // Initialisation of the motors controller
 Motion_control Controller(&StepperX, &StepperY, &StepperT);
 
-SemaphoreHandle_t syncSemaphoreTimeOut;
-SemaphoreHandle_t syncSemaphoreStep;
-
+// Initialisation of the TimeOut timer (Tic need a communication every second
+// or they stop with timeout exeption
 hw_timer_t * syncTimerTimeOut = NULL;
+volatile SemaphoreHandle_t syncTimerTimeOutSemaphore;
+
+// Initialisation of the step timer
 hw_timer_t * syncTimerStep = NULL;
+volatile SemaphoreHandle_t syncTimerStepSemaphore;
 
-void IRAM_ATTR handleTimeOut(){
-  //Can't use Serial or I2C in interrupt
-  xSemaphoreGiveFromISR(syncSemaphoreTimeOut, NULL);
+//Definition of The Interrupt Service Routine for Timeout
+void IRAM_ATTR onsyncTimerTimeOut(){
+  xSemaphoreGiveFromISR(syncTimerTimeOutSemaphore, NULL);
 }
 
-void IRAM_ATTR handleStep(){
-  //Can't use Serial or I2C in interrupt
-  xSemaphoreGiveFromISR(syncSemaphoreStep, NULL);
+//Definition of The Interrupt Service Routine for step
+void IRAM_ATTR onsyncTimerStep(){
+  xSemaphoreGiveFromISR(syncTimerStepSemaphore, NULL);
 }
 
-
-void skeletonTask( void * parameter )
+void timeOutTask( void * parameter )
 {
   /* Block for 1 second */
-  const TickType_t xDelay = 1000 / portTICK_PERIOD_MS;
-  while( true) {
-    
-    if(xSemaphoreTake(syncSemaphore1, xDelay)){
-      Serial.printf("Motion detected 11, %d pending\n",uxSemaphoreGetCount(syncSemaphore1));
+  const TickType_t xDelay = 1000;
+  bool state = true;
+  while(true) {
+    if(xSemaphoreTake(syncTimerTimeOutSemaphore, xDelay)){
+      Controller.resetTimeout();
     } 
-    else {
-      Serial.printf("no synch1 in last second\n");
-    }
+    else {}
   }
     vTaskDelete( NULL );
 }
 
-
-void setup()
+void stepTask( void * parameter )
 {
-  Wire.begin();
-  delay(20);
+  /* Block for 1 second */
+  const TickType_t xDelay = 1000;
+  bool state = true;
+  while(true) {
+    if(xSemaphoreTake(syncTimerTimeOutSemaphore, xDelay)){
+      Controller.resetTimeout();
+    } 
+    else {}
+  }
+    vTaskDelete( NULL );
+}
+
+int counter = 0;
+
+void setup() {
   Serial.begin(115200);
+  delay(20);
+  Wire.begin();
+  
+  pinMode(ySwitchPin, INPUT_PULLUP);
+  pinMode(xSwitchPin, INPUT_PULLUP);
+  xSwitchPinDB.attach(xSwitchPin);
+  ySwitchPinDB.attach(ySwitchPin);
 
-  // Init of the semaphores
-  syncSemaphoreTimeOut = xSemaphoreCreateBinary();
-  syncTimerStep = xSemaphoreCreateBinary();
+  // Create semaphore to inform us when the syncTimerTimeOut has fired
+  syncTimerTimeOutSemaphore = xSemaphoreCreateBinary();
 
-  // Use 1st timer of 4 (counted from zero) for timeout
+  // Use 1st syncTimerTimeOut of 4 (counted from zero).
   // Set 80 divider for prescaler (see ESP32 Technical Reference Manual for more
   // info).
-  timer = timerBegin(0, 80, true);
-  // Attach onTimer function to our timer.
-  timerAttachInterrupt(timer, &handleTimeOut, true);
+  syncTimerTimeOut = timerBegin(0, 80, true);
+
+  // Attach onsyncTimerTimeOut function to our syncTimerTimeOut.
+  timerAttachInterrupt(syncTimerTimeOut, &onsyncTimerTimeOut, true);
+
+  // Set alarm to call onsyncTimerTimeOut function every second (value in microseconds).
+  // Repeat the alarm (third parameter)
+  timerAlarmWrite(syncTimerTimeOut, 900000, true);
+
+  // Start an alarm
+  timerAlarmEnable(syncTimerTimeOut);
+
+  Controller.init();
 
   xTaskCreate(
-    skeletonTask, // Task function.
-    "Producer", // String with name of task.
+    timeOutTask, // Task function.
+    "TimeOut", // String with name of task.
     10000, // Stack size in words.
     NULL, // Parameter passed as input of the task
     1, // Priority of the task.
     NULL); // Task handle.
-
-  StepperT.init();
-  StepperY.init();
-  StepperX.init();
+  calibrationXY(&StepperX, &StepperY, &xSwitchPinDB, &ySwitchPinDB);
 }
 
-void loop()
-{
-
-    Controller.calibrate();
+void loop() {
+  xSwitchPinDB.read();
+  if(xSwitchPinDB.changing()){counter++;}
+  Serial.println(counter);
+  delay(1000);
 //  Serial.println(StepperY.getMicro_step());
 //  Serial.println("yolo");
 //  StepperT.setTargetVelocity(2000000);

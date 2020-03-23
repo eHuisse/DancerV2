@@ -47,5 +47,11 @@ void Motion_control::resetTimeout()
 	_StepperX->resetCommandTimeout();
 	_StepperY->resetCommandTimeout();
 	_StepperT->resetCommandTimeout();
-	Serial.println("Trigger");
 }	
+
+void Motion_control::init()
+{
+	_StepperX->init();
+	_StepperY->init();
+	_StepperT->init();
+}

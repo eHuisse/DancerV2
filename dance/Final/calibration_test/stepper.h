@@ -7,18 +7,19 @@ class Stepper: public TicI2C
 {
 public:
 	Stepper(int addr);
-	int um2step(int um);
-	int step2um(int steps);
-	int getPos_um();
+	int m2step(float m);
+	float step2m(int steps);
+	float getPos();
 	int getPos_step();
 	int getMicro_step();
 	void setVelocity(float target);
+	void setPosition(float target);
 	void init();
 
 private:
-	int _position_um;
+	float _position;
 	int _position_step;
-	const float _step_um_ratio = 0.00001; //One step = 10um
+	const float _step_m_ratio = 0.00001; //One step = 10um
 	int _addr;
 	int _micro_step;
 };

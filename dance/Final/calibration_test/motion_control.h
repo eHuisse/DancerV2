@@ -12,12 +12,13 @@ public:
 	bool is_calibrate();
 	bool is_calibrating();
 	void resetTimeout();
+	void init();
+
 private:
   	Stepper* _StepperX;
   	Stepper* _StepperY;
   	Stepper* _StepperT;
   	void _controller();
   	bool _in_calibration;
-
 };
 #endif
