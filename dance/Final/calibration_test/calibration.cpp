@@ -14,9 +14,8 @@ void calibrationXY(Stepper* StepperX, Stepper* StepperY, DebouncedInput* xSwitch
 	findOrigine(StepperX, xSwitch, true);
 	StepperX->setPosition(0.002);
 	delay(1000);
-	StepperY->setPosition(0.05);
-	delay(2000);
-	Serial.println(findOrigine(StepperX, xSwitch, false), 8);
+	StepperY->setPosition(0.0615 - 0.0343);
+	StepperX->setPosition(0.075 - 0.0442);
 
 }
 

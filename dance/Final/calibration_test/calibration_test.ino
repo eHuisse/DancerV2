@@ -1,6 +1,7 @@
 #include "stepper.h"
 #include "motion_control.h"
 #include "calibration.h"
+#include "linear_actuator.h"
 #include <Tic.h>
 #include <DebounceInput.h>
 
@@ -12,11 +13,26 @@ const int timeStep = 10; //Time step of step tracking in useconds
 const int xSwitchPin = 12;
 const int ySwitchPin = 13;
 
+// Potentiometer is connected to GPIO 34 input of PQ12 pot
+int PQ12_potPin = 34;
+
+// PQ12 pin command output
+const int PQ12_speedPin = 32;
+const int PQ12_directionPin = 23;
+
+const float deltaXPod = -44.2;
+const float deltaYpod = -34.3;
+const float deltaXDF = 75.;
+const float deltaYDF = 61.5;
+
 DebouncedInput xSwitchPinDB;
 DebouncedInput ySwitchPinDB;
 
 // Initialisation of the motors controller
 Motion_control Controller(&StepperX, &StepperY, &StepperT);
+
+// Initialisation of tzhe PQ12 linearmotor
+Linear_Actuator PQ12(PQ12_potPin, PQ12_speedPin, PQ12_directionPin);
 
 // Initialisation of the TimeOut timer (Tic need a communication every second
 // or they stop with timeout exeption
@@ -96,6 +112,7 @@ void setup() {
   timerAlarmEnable(syncTimerTimeOut);
 
   Controller.init();
+  PQ12.init();
 
   xTaskCreate(
     timeOutTask, // Task function.
@@ -104,14 +121,19 @@ void setup() {
     NULL, // Parameter passed as input of the task
     1, // Priority of the task.
     NULL); // Task handle.
+  PQ12.retract(200);
+  delay(2000);
   calibrationXY(&StepperX, &StepperY, &xSwitchPinDB, &ySwitchPinDB);
+  delay(3000);
+  PQ12.extract(200);
 }
 
 void loop() {
-  xSwitchPinDB.read();
-  if(xSwitchPinDB.changing()){counter++;}
-  Serial.println(counter);
-  delay(1000);
+  Serial.println(PQ12.getPot());
+
+  delay(10000);
+//  PQ12.retract(200);
+//  delay(1000);
 //  Serial.println(StepperY.getMicro_step());
 //  Serial.println("yolo");
 //  StepperT.setTargetVelocity(2000000);

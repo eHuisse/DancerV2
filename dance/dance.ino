@@ -104,6 +104,7 @@ void PQ12_state_machine(){
       while(PQ12_getPot() > PQ12_low){
         PQ12_retract(PQ12_speedValue);
       }
+      delay(200);
       PQ12_state = STOP;
       PQ12_state_machine();
       break;
@@ -112,6 +113,7 @@ void PQ12_state_machine(){
       while(PQ12_getPot() < PQ12_high){
         PQ12_extract(PQ12_speedValue);
       }
+      delay(200);
       PQ12_state = STOP;
       PQ12_state_machine();
       break;
