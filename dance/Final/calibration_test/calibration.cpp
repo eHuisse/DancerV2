@@ -2,21 +2,33 @@
 #include "motion_control.h"
 #include <Tic.h>
 #include "calibration.h"
+#include "robot.h"
+#include <math.h>
 
-void calibrationXY(Stepper* StepperX, Stepper* StepperY, DebouncedInput* xSwitch, DebouncedInput* ySwitch)
+#define PI 3.14159265
+
+float calibrationXY(robot* beedancer)
 {
-	findOrigine(StepperX, xSwitch, true);
-	StepperX->setPosition(0.002);
-	delay(1000);
-	findOrigine(StepperY, ySwitch, true);
-	StepperY->setPosition(0.002);
-	delay(1000);
-	findOrigine(StepperX, xSwitch, true);
-	StepperX->setPosition(0.002);
-	delay(1000);
-	StepperY->setPosition(0.0615 - 0.0343);
-	StepperX->setPosition(0.075 - 0.0442);
+	float deltax = 0.;
+	float deltay = 0.04;
+	float theta = 0.;
 
+	findOrigine(beedancer->StepperX, beedancer->xSwitch, true);
+	beedancer->StepperX->setPosition(0.002, true);
+
+	findOrigine(beedancer->StepperY, beedancer->ySwitch, true);
+	beedancer->StepperY->setPosition(0.002, true);
+
+	findOrigine(beedancer->StepperX, beedancer->xSwitch, true);
+	beedancer->StepperX->setPosition(0.002, true);
+	beedancer->StepperY->setPosition(deltay, true);
+
+	findOrigine(beedancer->StepperX, beedancer->xSwitch, false);
+	deltax = beedancer->StepperX->getPos();
+	beedancer->StepperX->setPosition(0.002, true);
+
+	theta = atan(deltax / deltay) * 180 / PI;
+	return theta;
 }
 
 float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound)

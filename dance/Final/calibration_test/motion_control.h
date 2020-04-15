@@ -2,11 +2,12 @@
 #define MOTION_CONTROL_H
 #include <Arduino.h>
 #include "stepper.h"
+#include "robot.h"
 
 class Motion_control
 {
 public:
-	Motion_control(Stepper* StepperX, Stepper* StepperY, Stepper* StepperT);
+	Motion_control(robot* beedancer);
 	void goto_target(float x, float y, float z);
 	void calibrate();
 	bool is_calibrate();
@@ -15,9 +16,7 @@ public:
 	void init();
 
 private:
-  	Stepper* _StepperX;
-  	Stepper* _StepperY;
-  	Stepper* _StepperT;
+	robot* _beedancer;
   	void _controller();
   	bool _in_calibration;
 };

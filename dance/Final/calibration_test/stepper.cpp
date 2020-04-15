@@ -68,8 +68,12 @@ void Stepper::setVelocity(float target)
 	setTargetVelocity(Vstep);
 }
 
-void Stepper::setPosition(float target)
+void Stepper::setPosition(float target, bool blocking)
 {
 	// target in m.s-1
 	setTargetPosition(m2step(target));
+	if(blocking)
+	{
+		while(getCurrentPosition() != m2step(target)){vTaskDelay(10);}
+	}
 }

@@ -4,14 +4,24 @@
 #include "linear_actuator.h"
 #include <Tic.h>
 #include <DebounceInput.h>
+#include "robot.h"
+#include "state_machine.h"
 
 Stepper StepperT(10);
 Stepper StepperY(11);
 Stepper StepperX(12);
 
+robot beedancer;
+
 const int timeStep = 10; //Time step of step tracking in useconds
 const int xSwitchPin = 12;
 const int ySwitchPin = 13;
+
+// Flag to control if it's connected to PC
+bool is_connected = false;
+
+// The string used for each communication
+String inputString = "";
 
 // Potentiometer is connected to GPIO 34 input of PQ12 pot
 int PQ12_potPin = 34;
@@ -29,7 +39,7 @@ DebouncedInput xSwitchPinDB;
 DebouncedInput ySwitchPinDB;
 
 // Initialisation of the motors controller
-Motion_control Controller(&StepperX, &StepperY, &StepperT);
+Motion_control Controller(&beedancer);
 
 // Initialisation of tzhe PQ12 linearmotor
 Linear_Actuator PQ12(PQ12_potPin, PQ12_speedPin, PQ12_directionPin);
@@ -42,6 +52,9 @@ volatile SemaphoreHandle_t syncTimerTimeOutSemaphore;
 // Initialisation of the step timer
 hw_timer_t * syncTimerStep = NULL;
 volatile SemaphoreHandle_t syncTimerStepSemaphore;
+
+// Initialisation of the Serial Semaphore
+volatile SemaphoreHandle_t syncSerialSemaphore;
 
 //Definition of The Interrupt Service Routine for Timeout
 void IRAM_ATTR onsyncTimerTimeOut(){
@@ -81,13 +94,63 @@ void stepTask( void * parameter )
     vTaskDelete( NULL );
 }
 
+void serialTask( void * parameter )
+{
+  while(true) {
+    while (Serial.available()) {
+      // get the new byte:
+      char inChar = (char)Serial.read();
+      // add it to the inputString:
+      inputString += inChar;
+      // if the incoming character is a newline, set a flag so the main loop can
+      // do something about it:
+      if (inChar == '\n') {
+        xSemaphoreGive(syncSerialSemaphore);
+        Serial.println('yolo');
+      }
+    }
+    vTaskDelay(10);
+  }
+    vTaskDelete( NULL );
+}
+
+void connectionTask( void * parameter )
+{
+  while(true) {
+    while (Serial.available()) {
+      // get the new byte:
+      char inChar = (char)Serial.read();
+      // add it to the inputString:
+      inputString += inChar;
+      // if the incoming character is a newline, set a flag so the main loop can
+      // do something about it:
+      if (inChar == '\n') {
+        xSemaphoreGive(syncSerialSemaphore);
+      }
+    }
+    
+  }
+    vTaskDelete( NULL );
+}
+
 int counter = 0;
 
 void setup() {
   Serial.begin(115200);
   delay(20);
   Wire.begin();
+
+  // reserve 200 bytes for the inputString:
+  inputString.reserve(200);
+
+  // All the input outputs of the robot are in a data structure
+  beedancer.StepperT = &StepperT;
+  beedancer.StepperY = &StepperY;
+  beedancer.StepperX = &StepperX;
+  beedancer.xSwitch = &xSwitchPinDB;
+  beedancer.ySwitch = &ySwitchPinDB;
   
+  // Setting up the debounced inputs
   pinMode(ySwitchPin, INPUT_PULLUP);
   pinMode(xSwitchPin, INPUT_PULLUP);
   xSwitchPinDB.attach(xSwitchPin);
@@ -95,6 +158,7 @@ void setup() {
 
   // Create semaphore to inform us when the syncTimerTimeOut has fired
   syncTimerTimeOutSemaphore = xSemaphoreCreateBinary();
+  syncSerialSemaphore = xSemaphoreCreateBinary();
 
   // Use 1st syncTimerTimeOut of 4 (counted from zero).
   // Set 80 divider for prescaler (see ESP32 Technical Reference Manual for more
@@ -114,6 +178,7 @@ void setup() {
   Controller.init();
   PQ12.init();
 
+  // Creating the task who send a timeout flag to the stepper controller
   xTaskCreate(
     timeOutTask, // Task function.
     "TimeOut", // String with name of task.
@@ -121,17 +186,25 @@ void setup() {
     NULL, // Parameter passed as input of the task
     1, // Priority of the task.
     NULL); // Task handle.
-  PQ12.retract(200);
-  delay(2000);
-  calibrationXY(&StepperX, &StepperY, &xSwitchPinDB, &ySwitchPinDB);
-  delay(3000);
-  PQ12.extract(200);
+
+    // Creating the task who send a timeout flag to the stepper controller
+  xTaskCreate(
+    serialTask, // Task function.
+    "Serial", // String with name of task.
+    10000, // Stack size in words.
+    NULL, // Parameter passed as input of the task
+    1, // Priority of the task.
+    NULL); // Task handle.
+    
+  //PQ12.retract(200);
+  //delay(2000);
+  Serial.println(calibrationXY(&beedancer));
+  //delay(3000);
+  //PQ12.extract(200);
 }
 
 void loop() {
-  Serial.println(PQ12.getPot());
-
-  delay(10000);
+  vTaskDelay(10);
 //  PQ12.retract(200);
 //  delay(1000);
 //  Serial.println(StepperY.getMicro_step());

@@ -13,7 +13,7 @@ public:
 	int getPos_step();
 	int getMicro_step();
 	void setVelocity(float target);
-	void setPosition(float target);
+	void setPosition(float target, bool blocking = false);
 	void init();
 
 private:

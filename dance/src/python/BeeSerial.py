@@ -1,22 +1,48 @@
 import serial.tools.list_ports
 import sys
 import glob
+import time
 
-#ports = list(serial.tools.list_ports.comports())
-#for p in ports:
-#    print(p.serial_number)
+
+from time import sleep
+import serial
+'''
+ser = serial.Serial('/dev/ttyUSB0', 9600, timeout=1) # Establish the connection on a specific port
+counter = 0# Below 32 everything in ASCII is gibberish
+sleep(2)
+while True:
+	counter +=1
+	ser.write(bytes(str(counter)+'\n', 'utf-8')) # Convert the decimal number to ASCII then send it to the Arduino
+	print('loop', ser.readline().decode('utf-8')) # Read the newest output from the Arduino
+	sleep(.1) # Delay for one tenth of a second
+	if counter == 255:
+		counter = 32
+'''
 
 class SerialBeeBoogie():
-	def __init__(self, baudrate):
+	def __init__(self, baudrate, password):
 		self.baudrate = baudrate
-		self.port = self.find_controller('beeboogie')
-		print('Port founded for communication with beeboogie module: ' + str(self.port))
+		self.password = password
+		self.timeout = 1
+		self.port = ''
+		self.findport()
+		self.serial = None
+		self.open_port(self.port)
 
-	def close_port():
+		self.close_port()
+
+	def open_port(self, port):
+		self.serial = serial.Serial(port = port, baudrate = self.baudrate, timeout = self.timeout)
+		time.sleep(2)
+		print(self.serial.port, 'is now open')
+		return self.serial
+
+	def close_port(self):
 		self.serial.close()
+		print(self.serial.port, 'is now closed')
 
-	def find_controller(self, password):
-		    # Finds the serial port names
+	def findport(self):
+		# Finds the serial port names
 		if sys.platform.startswith('win'):
 			ports = ['COM%s' % (i+1) for i in range(256)]
 		elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
@@ -26,29 +52,37 @@ class SerialBeeBoogie():
 		else:
 			raise EnvironmentError('Error finding ports on your operating system')
 
-		beecontroller_port = ''
-		for port in ports:
-			print(port)
-			try:
-				s = serial.Serial(port=port, baudrate = self.baudrate, timeout=1)
-				print(s)
-				s.write('password\n'.encode("utf-8"))
-				answer = s.readline()
-				print(answer)
-				s.close()
+		for p in ports:
+			s = self.open_port(p)
+			is_bee = self.isBee(s)
+			s.close()
 
-				if answer[:-1]==password:
-					beecontroller_port = port
+			if is_bee:
+				self.port = p
 
-			except (OSError, serial.SerialException):
-				pass
-
-		if beecontroller_port == '':
-			raise OSError('Cannot find BeeBoogie port')
-
+		if self.port == '':
+			raise OSError('Cannot find the bee dancer')
 		else:
-			return beecontroller_port 
+			print('Bee dancer founded in port :', self.port)
+
+
+	def isBee(self, serial):
+		"""
+		When automatically detecting port, parse the serial return for the "OpenBCI" ID.
+		"""
+		#Wait for device to send data
+		line = ''
+		q=bytes('who'+'\n', 'utf-8')
+		serial.write(q)
+		c = serial.readline().decode('utf-8')
+		line += c
+		if self.password in line:
+			return True
+		return False
+
+	def send_and_ack()
+		
 
 if __name__=='__main__':
 	password = 'beeboogie'
-	serial = SerialBeeBoogie(9600)
+	serial = SerialBeeBoogie(9600, password)

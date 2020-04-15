@@ -3,8 +3,10 @@
 #include <Arduino.h>
 #include <Tic.h>
 #include <DebounceInput.h>
+#include "robot.h"
+#include <math.h>
 
-void calibrationXY(Stepper* StepperX, Stepper* StepperY, DebouncedInput* xSwitch, DebouncedInput* ySwitch);
+float calibrationXY(robot* beedancer);
 
 float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound = false);
 
