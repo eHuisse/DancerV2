@@ -13,6 +13,8 @@ Stepper StepperX(12);
 
 robot beedancer;
 
+State_Machine braindancer(&beedancer); 
+
 const int timeStep = 10; //Time step of step tracking in useconds
 const int xSwitchPin = 12;
 const int ySwitchPin = 13;
@@ -30,6 +32,7 @@ int PQ12_potPin = 34;
 const int PQ12_speedPin = 32;
 const int PQ12_directionPin = 23;
 
+// Measurment of the robot mm
 const float deltaXPod = -44.2;
 const float deltaYpod = -34.3;
 const float deltaXDF = 75.;
@@ -56,6 +59,9 @@ volatile SemaphoreHandle_t syncTimerStepSemaphore;
 // Initialisation of the Serial Semaphore
 volatile SemaphoreHandle_t syncSerialSemaphore;
 
+// Initialisation of the mutex for state machine usage
+volatile SemaphoreHandle_t stateMachineMutex;
+
 //Definition of The Interrupt Service Routine for Timeout
 void IRAM_ATTR onsyncTimerTimeOut(){
   xSemaphoreGiveFromISR(syncTimerTimeOutSemaphore, NULL);
@@ -71,53 +77,41 @@ void timeOutTask( void * parameter )
   /* Block for 1 second */
   const TickType_t xDelay = 1000;
   bool state = true;
-  while(true) {
+  for( ;; ) {
     if(xSemaphoreTake(syncTimerTimeOutSemaphore, xDelay)){
       Controller.resetTimeout();
     } 
     else {}
   }
-    vTaskDelete( NULL );
+  vTaskDelete( NULL );
 }
 
 void stepTask( void * parameter )
 {
-  /* Block for 1 second */
-  const TickType_t xDelay = 1000;
-  bool state = true;
-  while(true) {
-    if(xSemaphoreTake(syncTimerTimeOutSemaphore, xDelay)){
-      Controller.resetTimeout();
-    } 
-    else {}
+  /* See if we can obtain the semaphore.  If the semaphore is not
+  available wait 10 ticks to see if it becomes free. */
+  const TickType_t xDelay = 1;
+  for( ;; ) {
+    if(xSemaphoreTake(stateMachineMutex, xDelay)){
+      braindancer.step();
+      xSemaphoreGive(stateMachineMutex);
+    }
+    if(xSemaphoreTake(syncSerialSemaphore, xDelay) == pdTRUE){
+      braindancer.handle_message(&inputString);
+    }
+    else {
+
+    }
+    vTaskDelay(1);  
   }
-    vTaskDelete( NULL );
+  vTaskDelete( NULL );
 }
 
 void serialTask( void * parameter )
 {
-  while(true) {
-    while (Serial.available()) {
-      // get the new byte:
-      char inChar = (char)Serial.read();
-      // add it to the inputString:
-      inputString += inChar;
-      // if the incoming character is a newline, set a flag so the main loop can
-      // do something about it:
-      if (inChar == '\n') {
-        xSemaphoreGive(syncSerialSemaphore);
-        Serial.println('yolo');
-      }
-    }
-    vTaskDelay(10);
-  }
-    vTaskDelete( NULL );
-}
-
-void connectionTask( void * parameter )
-{
-  while(true) {
-    while (Serial.available()) {
+  const TickType_t xDelay = 100;
+  for( ;; ) {
+    while(Serial.available()) {
       // get the new byte:
       char inChar = (char)Serial.read();
       // add it to the inputString:
@@ -128,9 +122,9 @@ void connectionTask( void * parameter )
         xSemaphoreGive(syncSerialSemaphore);
       }
     }
-    
+    vTaskDelay(1);
   }
-    vTaskDelete( NULL );
+  vTaskDelete( NULL );
 }
 
 int counter = 0;
@@ -159,6 +153,7 @@ void setup() {
   // Create semaphore to inform us when the syncTimerTimeOut has fired
   syncTimerTimeOutSemaphore = xSemaphoreCreateBinary();
   syncSerialSemaphore = xSemaphoreCreateBinary();
+  stateMachineMutex = xSemaphoreCreateMutex();
 
   // Use 1st syncTimerTimeOut of 4 (counted from zero).
   // Set 80 divider for prescaler (see ESP32 Technical Reference Manual for more
@@ -182,6 +177,15 @@ void setup() {
   xTaskCreate(
     timeOutTask, // Task function.
     "TimeOut", // String with name of task.
+    10000, // Stack size in words.
+    NULL, // Parameter passed as input of the task
+    1, // Priority of the task.
+    NULL); // Task handle.
+
+    // Creating the task who send a timeout flag to the stepper controller
+  xTaskCreate(
+    stepTask, // Task function.
+    "Step", // String with name of task.
     10000, // Stack size in words.
     NULL, // Parameter passed as input of the task
     1, // Priority of the task.
