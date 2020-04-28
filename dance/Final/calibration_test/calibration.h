@@ -8,6 +8,8 @@
 
 float calibrationXY(robot* beedancer);
 
-float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound = false);
+float calibrationDF(robot* beedancer);
+
+float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound = false, bool isCircular = false);
 
 #endif

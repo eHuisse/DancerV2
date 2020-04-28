@@ -76,13 +76,15 @@ class SerialBeeBoogie():
 		serial.write(q)
 		c = serial.readline().decode('utf-8')
 		line += c
+		print("Password returned : ", line)
 		if self.password in line:
 			return True
 		return False
 
-	def send_and_ack()
+	def send_and_ack():
+		return 0
 		
 
 if __name__=='__main__':
 	password = 'beeboogie'
-	serial = SerialBeeBoogie(9600, password)
+	serial = SerialBeeBoogie(115200, password)

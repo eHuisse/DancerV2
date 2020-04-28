@@ -7,17 +7,17 @@
 #include "robot.h"
 #include "state_machine.h"
 
-Stepper StepperT(10);
-Stepper StepperY(11);
-Stepper StepperX(12);
+Stepper StepperDF(9, 600, false);
+Stepper StepperT(10, 400, true);
+Stepper StepperY(11, 400, true);
+Stepper StepperX(12, 400, true);
 
-robot beedancer;
-
-State_Machine braindancer(&beedancer); 
+robot beedancer; 
 
 const int timeStep = 10; //Time step of step tracking in useconds
 const int xSwitchPin = 12;
 const int ySwitchPin = 13;
+const int dfSwitchPin = 19;
 
 // Flag to control if it's connected to PC
 bool is_connected = false;
@@ -40,6 +40,7 @@ const float deltaYDF = 61.5;
 
 DebouncedInput xSwitchPinDB;
 DebouncedInput ySwitchPinDB;
+DebouncedInput dfSwitchPinDB;
 
 // Initialisation of the motors controller
 Motion_control Controller(&beedancer);
@@ -47,6 +48,7 @@ Motion_control Controller(&beedancer);
 // Initialisation of tzhe PQ12 linearmotor
 Linear_Actuator PQ12(PQ12_potPin, PQ12_speedPin, PQ12_directionPin);
 
+State_Machine braindancer(&Controller);
 // Initialisation of the TimeOut timer (Tic need a communication every second
 // or they stop with timeout exeption
 hw_timer_t * syncTimerTimeOut = NULL;
@@ -68,7 +70,7 @@ void IRAM_ATTR onsyncTimerTimeOut(){
 }
 
 //Definition of The Interrupt Service Routine for step
-void IRAM_ATTR onsyncTimerStep(){
+void IRAM_ATTR onsyncTimerNextPos(){
   xSemaphoreGiveFromISR(syncTimerStepSemaphore, NULL);
 }
 
@@ -86,22 +88,21 @@ void timeOutTask( void * parameter )
   vTaskDelete( NULL );
 }
 
-void stepTask( void * parameter )
+void continuousTask( void * parameter )
 {
   /* See if we can obtain the semaphore.  If the semaphore is not
   available wait 10 ticks to see if it becomes free. */
   const TickType_t xDelay = 1;
   for( ;; ) {
-    if(xSemaphoreTake(stateMachineMutex, xDelay)){
-      braindancer.step();
-      xSemaphoreGive(stateMachineMutex);
-    }
+    
+    braindancer.step();
+
     if(xSemaphoreTake(syncSerialSemaphore, xDelay) == pdTRUE){
       braindancer.handle_message(&inputString);
     }
-    else {
 
-    }
+    else {}
+      
     vTaskDelay(1);  
   }
   vTaskDelete( NULL );
@@ -137,18 +138,23 @@ void setup() {
   // reserve 200 bytes for the inputString:
   inputString.reserve(200);
 
+  // Setting up the debounced inputs
+  pinMode(ySwitchPin, INPUT_PULLUP);
+  pinMode(xSwitchPin, INPUT_PULLUP);
+  pinMode(dfSwitchPin, INPUT_PULLUP);
+  xSwitchPinDB.attach(xSwitchPin);
+  ySwitchPinDB.attach(ySwitchPin);
+  dfSwitchPinDB.attach(dfSwitchPin);
+
   // All the input outputs of the robot are in a data structure
   beedancer.StepperT = &StepperT;
   beedancer.StepperY = &StepperY;
   beedancer.StepperX = &StepperX;
+  beedancer.StepperDF = &StepperDF;
+  beedancer.PQ12 = &PQ12;
   beedancer.xSwitch = &xSwitchPinDB;
   beedancer.ySwitch = &ySwitchPinDB;
-  
-  // Setting up the debounced inputs
-  pinMode(ySwitchPin, INPUT_PULLUP);
-  pinMode(xSwitchPin, INPUT_PULLUP);
-  xSwitchPinDB.attach(xSwitchPin);
-  ySwitchPinDB.attach(ySwitchPin);
+  beedancer.dfSwitch = &dfSwitchPinDB;
 
   // Create semaphore to inform us when the syncTimerTimeOut has fired
   syncTimerTimeOutSemaphore = xSemaphoreCreateBinary();
@@ -171,7 +177,6 @@ void setup() {
   timerAlarmEnable(syncTimerTimeOut);
 
   Controller.init();
-  PQ12.init();
 
   // Creating the task who send a timeout flag to the stepper controller
   xTaskCreate(
@@ -184,7 +189,7 @@ void setup() {
 
     // Creating the task who send a timeout flag to the stepper controller
   xTaskCreate(
-    stepTask, // Task function.
+    continuousTask, // Task function.
     "Step", // String with name of task.
     10000, // Stack size in words.
     NULL, // Parameter passed as input of the task
@@ -202,7 +207,7 @@ void setup() {
     
   //PQ12.retract(200);
   //delay(2000);
-  Serial.println(calibrationXY(&beedancer));
+  //Serial.println(calibrationXY(&beedancer));
   //delay(3000);
   //PQ12.extract(200);
 }

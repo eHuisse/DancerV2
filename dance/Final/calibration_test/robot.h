@@ -13,6 +13,7 @@ typedef struct
 	Linear_Actuator* PQ12;
 	DebouncedInput* xSwitch;
 	DebouncedInput* ySwitch;
+	DebouncedInput* dfSwitch;
 } robot;
 
 #endif

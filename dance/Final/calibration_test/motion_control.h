@@ -14,10 +14,13 @@ public:
 	bool is_calibrating();
 	void resetTimeout();
 	void init();
+	void retract();
+	void extract();
 
 private:
 	robot* _beedancer;
   	void _controller();
-  	bool _in_calibration;
+  	bool _is_calibrated;
+  	float _theta_robot_comb = 0.;
 };
 #endif
