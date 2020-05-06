@@ -27,6 +27,12 @@ void Stepper::init()
 
 int Stepper::m2step(float m)
 {
+	Serial.print("Stepper div0  stmR : ");
+	Serial.println(_step_m_ratio, 8);
+	Serial.print("Stepper div0  m : ");
+	Serial.println(m, 8);
+	Serial.print("Stepper div0  _micro_step : ");
+	Serial.println(_micro_step, 8);
 	return (int)(m / _step_m_ratio * _micro_step);
 }
 
@@ -101,23 +107,39 @@ void Stepper::setVelocity(float target)
 	}
 }
 
+void Stepper::handleError(uint32_t errors, int target){
+	if (errors & (1 << (uint8_t)TicError::CommandTimeout))
+	{
+		Serial.println("ErrorOccured (TimeOut) : resetting Timeout.");
+		resetCommandTimeout();
+	}
+	if (errors & (1 << (uint8_t)TicError::SerialError))
+	{
+		Serial.println("ErrorOccured (Serial) : resetting target.");
+		setTargetPosition(target);
+	}
+}
+
 void Stepper::setPosition(float target, bool blocking)
 {
 	float remapped_target = 0.;
 	float shortestArc = 0.;
 	float new_position = 0.;
-
+	int computed_target = 0;
+	Serial.println("stepper;beforeif");
 	if(_is_linear){
 		// target in m.s-1
 		Serial.println("stepper;afterif");
-		setTargetPosition(m2step(target));
+		computed_target = m2step(target);
+		setTargetPosition(computed_target);
 		if(blocking)
 		{
-			Serial.println(m2step(target));
 			Serial.println("stepper;beforeblocking");
-			while(getCurrentPosition() != m2step(target)){
-				setTargetPosition(m2step(target));
-				vTaskDelay(1);}
+			while(getCurrentPosition() != computed_target){
+				Serial.print("inLoop");
+				handleError(getErrorsOccurred(), computed_target);
+				vTaskDelay(1);
+			}
 			Serial.println("stepper;afterblocking");
 		}
 	}
@@ -143,12 +165,15 @@ void Stepper::setPosition(float target, bool blocking)
 		Serial.print(new_position);
 		Serial.print(" ; new_positioninstep : ");
 		Serial.print(rad2step(new_position));
+		computed_target = rad2step(new_position);
 
-
-		setTargetPosition(rad2step(new_position));
+		setTargetPosition(computed_target);
 		if(blocking)
 		{
-			while(getCurrentPosition() != rad2step(new_position)){vTaskDelay(1);}
+			while(getCurrentPosition() != computed_target){
+				handleError(getErrorsOccurred(), computed_target);
+				vTaskDelay(1);
+			}
 		}
 	}
 }

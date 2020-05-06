@@ -74,20 +74,6 @@ void IRAM_ATTR onsyncTimerNextPos(){
   xSemaphoreGiveFromISR(syncTimerStepSemaphore, NULL);
 }
 
-void timeOutTask( void * parameter )
-{
-  /* Block for 1 second */
-  const TickType_t xDelay = 1000;
-  bool state = true;
-  for( ;; ) {
-    if(xSemaphoreTake(syncTimerTimeOutSemaphore, xDelay)){
-      Controller.resetTimeout();
-    } 
-    else {}
-  }
-  vTaskDelete( NULL );
-}
-
 void continuousTask( void * parameter )
 {
   /* See if we can obtain the semaphore.  If the semaphore is not
@@ -95,10 +81,16 @@ void continuousTask( void * parameter )
   const TickType_t xDelay = 1;
   for( ;; ) {
     
-    braindancer.step();
+    if(xSemaphoreTake(stateMachineMutex, xDelay) == pdTRUE){
+      braindancer.step();
+      xSemaphoreGive(stateMachineMutex);
+    }
 
     if(xSemaphoreTake(syncSerialSemaphore, xDelay) == pdTRUE){
-      braindancer.handle_message(&inputString);
+      if(xSemaphoreTake(stateMachineMutex, xDelay) == pdTRUE){
+        braindancer.handle_message(&inputString);
+        xSemaphoreGive(stateMachineMutex);
+      }
     }
 
     else {}
@@ -134,6 +126,8 @@ void setup() {
   Serial.begin(115200);
   delay(20);
   Wire.begin();
+
+  Wire.setClock(100000);
 
   // reserve 200 bytes for the inputString:
   inputString.reserve(200);
@@ -171,7 +165,7 @@ void setup() {
 
   // Set alarm to call onsyncTimerTimeOut function every second (value in microseconds).
   // Repeat the alarm (third parameter)
-  timerAlarmWrite(syncTimerTimeOut, 900000, true);
+  timerAlarmWrite(syncTimerTimeOut, 500000, true);
 
   // Start an alarm
   timerAlarmEnable(syncTimerTimeOut);
@@ -211,6 +205,8 @@ void setup() {
   //delay(3000);
   //PQ12.extract(200);
 }
+
+const TickType_t xDelay = 1;
 
 void loop() {
   vTaskDelay(10);

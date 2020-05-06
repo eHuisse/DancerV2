@@ -17,6 +17,7 @@ public:
 	void setVelocity(float target);
 	void setPosition(float target, bool blocking = false);
 	void init();
+	void handleError(uint32_t errors, int target);
 	float getShortestArc(float current, float target);
 	float getPrincipaleAngle(float angleRad);
 	float step2rad(int steps);

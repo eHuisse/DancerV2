@@ -61,7 +61,7 @@ float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound
 		Stepper->setVelocity(-0.005);
 
 		//While we don't find it
-		while(!switchPin->low()){switchPin->read();vTaskDelay(1);Stepper->setVelocity(-0.005);}
+		while(!switchPin->low()){switchPin->read();vTaskDelay(1);}
 		Serial.println("!0");
 		Stepper->haltAndHold();
 		vTaskDelay(100);
@@ -72,7 +72,7 @@ float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound
 			Serial.println("!1");
 			Stepper->setVelocity(0.001);
 			Serial.println("!2");
-			while(!switchPin->high()){switchPin->read();vTaskDelay(1);Stepper->setVelocity(0.001);}
+			while(!switchPin->high()){switchPin->read();vTaskDelay(1);}
 			Serial.println("!3");
 			Stepper->haltAndHold();
 			Serial.println("!4");
@@ -81,7 +81,7 @@ float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound
 			Serial.println("!5");
 
 			Stepper->setVelocity(-0.001);
-			while(!switchPin->low()){switchPin->read();vTaskDelay(1);Stepper->setVelocity(-0.001);}
+			while(!switchPin->low()){switchPin->read();vTaskDelay(1);}
 			Stepper->haltAndHold();
 			vTaskDelay(100);
 
@@ -92,22 +92,22 @@ float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound
 	{
 		//We do it repeat time for averging
 		for(int i = 0 ; i < repeat ; i++){
-			Serial.println("!0");
+
 			Stepper->setVelocity(PI/10.);
-			Serial.println("!1");
+
 			while(!switchPin->falling()){switchPin->read();vTaskDelay(1);}
 			while(!switchPin->rising()){switchPin->read();vTaskDelay(1);}
-			Serial.println("!2");
+
 			switchPlus[i] = Stepper->getPos();
 
 			vTaskDelay(100);
 			Stepper->haltAndHold();
 			vTaskDelay(100);
-			Serial.println("!3");
+
 			Stepper->setVelocity(-PI/10.);
 			while(!switchPin->falling()){switchPin->read();vTaskDelay(1);}
 			while(!switchPin->rising()){switchPin->read();vTaskDelay(1);}
-			Serial.println("!4");
+
 			switchMinus[i] = Stepper->getPos();
 
 			vTaskDelay(100);
@@ -128,17 +128,17 @@ float findOrigine(Stepper* Stepper, DebouncedInput* switchPin, bool setWhenFound
 	{
 		average_origine += switchAverage[i];
 	}
-	Serial.println("!5-1");
+
 	average_origine = average_origine / (float)repeat;
-	Serial.println("!5+1");
+
 	current_position = Stepper->getPos();
-	Serial.println("!5");
+
 	Stepper->setPosition(average_origine, true);
-	Serial.println("!6");
+
 	if(setWhenFound)
 	{
 		Stepper->haltAndSetPosition(0);
 	}
-	Serial.println("!7");
+
 	return current_position;
 }

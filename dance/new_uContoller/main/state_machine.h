@@ -12,10 +12,16 @@ public:
 	State_Machine(Motion_control* beedancer);
 	void handle_message(String* input);
 	void step();
+	bool runCalibration();
+	bool extract();
+	bool retract();
+	bool speedMove();
+	bool positionMove();
 	String getValue(String data, char separator, int index);
 
 private:
-	bool _is_synchronized = false;
+	enum state{unCalibrated, Calibration, Calibrated, Ready, SpeedMove, PositionMove};
+	state _current_state;
 	bool _is_calibrated = false;
 	Motion_control* _beedancer;
 	const int _buffer_size = 10;
